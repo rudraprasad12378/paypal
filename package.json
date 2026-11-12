@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:guardrails": "node --experimental-strip-types test/guardrails.test.ts",
     "test:negotiator": "node --experimental-strip-types test/negotiator.test.ts",
-    "test:paypal": "node --experimental-strip-types test/paypal.test.ts"
+    "test:paypal": "node --experimental-strip-types test/paypal.test.ts",
+    "test:e2e": "node --experimental-strip-types test/api_flow.test.ts"
   },
   "dependencies": {
     "lucide-react": "^1.72.0",
