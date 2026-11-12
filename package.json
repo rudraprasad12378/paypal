@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:vitest": "vitest run lib/guardrails.test.ts",
     "test:guardrails": "node --experimental-strip-types test/guardrails.test.ts",
     "test:negotiator": "node --experimental-strip-types test/negotiator.test.ts",
     "test:paypal": "node --experimental-strip-types test/paypal.test.ts",
@@ -26,6 +28,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
   }
 }
