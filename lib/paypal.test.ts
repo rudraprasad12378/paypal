@@ -80,3 +80,4 @@ describe("PayPal Orders API v2 Library (SANDBOX)", () => {
     expect(result.approvalUrl).toContain("https://www.sandbox.paypal.com/checkoutnow?token=");
   });
 });
+

@@ -2,23 +2,20 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { Header } from "@/components/Header";
-import { MandateBar } from "@/components/MandateBar";
-import { EditMandateModal } from "@/components/EditMandateModal";
-import { CatalogSection } from "@/components/CatalogSection";
-import { NegotiationArena } from "@/components/NegotiationArena";
-import { GuardrailInspector } from "@/components/GuardrailInspector";
+import { SavingsScoreboard } from "@/components/SavingsScoreboard";
+import { MandatePanel } from "@/components/MandatePanel";
+import { ShoppingRequestBox } from "@/components/ShoppingRequestBox";
+import { SplitScreenArena } from "@/components/SplitScreenArena";
 import { PayPalWalletCard } from "@/components/PayPalWalletCard";
 import { TransactionHistory } from "@/components/TransactionHistory";
 import { AuditLedger } from "@/components/AuditLedger";
-import { ShieldCheck, ShieldAlert, Zap, Skull } from "lucide-react";
 import {
   AppState,
   CatalogProduct,
-  DealProposal,
-  GuardrailEvaluation,
   Mandate,
   NegotiationTurn,
   Transaction,
+  NegotiationRunRecord,
 } from "@/types";
 
 interface EnvConfig {
@@ -29,27 +26,37 @@ interface EnvConfig {
   paypalMode: "LIVE_SANDBOX" | "SIMULATED_SANDBOX";
 }
 
+interface ResultData {
+  finalPrice: number;
+  status: "approved" | "needs_approval" | "blocked";
+  reasons: string[];
+  savings: number;
+  listPrice: number;
+  transactionId?: string;
+}
+
 export default function Home() {
   const [state, setState] = useState<AppState | null>(null);
   const [envConfig, setEnvConfig] = useState<EnvConfig | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Mode and Security Controls
-  const [mode, setMode] = useState<"guarded" | "unguarded">("guarded");
+  // Attack Mode Toggle
   const [attackMode, setAttackMode] = useState(false);
 
-  // Active negotiation & inspection state
-  const [activeDeal, setActiveDeal] = useState<DealProposal | null>(null);
-  const [activeGuardrail, setActiveGuardrail] = useState<GuardrailEvaluation | null>(null);
-  const [activeTransaction, setActiveTransaction] = useState<Transaction | null>(null);
-  const [activeProductTitle, setActiveProductTitle] = useState<string>("");
+  // Active Selected Product for Dual Arena
+  const [activeProduct, setActiveProduct] = useState<CatalogProduct | null>(null);
 
-  // Loading states
+  // Dual Negotiation Transcript State
+  const [unguardedTurns, setUnguardedTurns] = useState<NegotiationTurn[]>([]);
+  const [guardedTurns, setGuardedTurns] = useState<NegotiationTurn[]>([]);
+  const [unguardedResult, setUnguardedResult] = useState<ResultData | null>(null);
+  const [guardedResult, setGuardedResult] = useState<ResultData | null>(null);
+
+  // Async Action States
   const [isNegotiating, setIsNegotiating] = useState(false);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [isTogglingKillSwitch, setIsTogglingKillSwitch] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Fetch initial or refreshed application state
   const refreshState = useCallback(async () => {
@@ -62,6 +69,7 @@ export default function Home() {
           transactions: data.transactions,
           auditLogs: data.auditLogs,
           products: data.products,
+          negotiationRuns: data.negotiationRuns || [],
         });
         setEnvConfig(data.envConfig);
       }
@@ -75,6 +83,13 @@ export default function Home() {
   useEffect(() => {
     refreshState();
   }, [refreshState]);
+
+  // Set default product on load
+  useEffect(() => {
+    if (state?.products && state.products.length > 0 && !activeProduct) {
+      setActiveProduct(state.products[0]);
+    }
+  }, [state?.products, activeProduct]);
 
   // Toggle Emergency Kill Switch
   const handleToggleKillSwitch = async () => {
@@ -105,10 +120,10 @@ export default function Home() {
     try {
       const res = await fetch("/api/reset", { method: "POST" });
       if (res.ok) {
-        setActiveDeal(null);
-        setActiveGuardrail(null);
-        setActiveTransaction(null);
-        setActiveProductTitle("");
+        setUnguardedTurns([]);
+        setGuardedTurns([]);
+        setUnguardedResult(null);
+        setGuardedResult(null);
         await refreshState();
       }
     } catch (err) {
@@ -134,177 +149,147 @@ export default function Home() {
     }
   };
 
-  // Process SSE Streaming Negotiation
-  const processStreamingNegotiation = async (
+  // Stream Reader Helper for Dual Negotiation
+  const readSSEStream = async (
     res: Response,
-    product: {
-      id: string;
-      name: string;
-      category: string;
-      listPrice: number;
-      sellerName?: string;
-    }
+    targetSide: "unguarded" | "guarded",
+    product: CatalogProduct
   ) => {
     if (!res.body) return;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    const liveTurns: NegotiationTurn[] = [];
+    const turnsAccumulator: NegotiationTurn[] = [];
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const chunks = buffer.split("\n\n");
-      buffer = chunks.pop() || "";
+        buffer += decoder.decode(value, { stream: true });
+        const chunks = buffer.split("\n\n");
+        buffer = chunks.pop() || "";
 
-      for (const chunk of chunks) {
-        if (chunk.startsWith("data: ")) {
-          const jsonStr = chunk.replace(/^data:\s*/, "").trim();
-          try {
-            const evt = JSON.parse(jsonStr);
+        for (const chunk of chunks) {
+          if (chunk.startsWith("data: ")) {
+            const jsonStr = chunk.replace(/^data:\s*/, "").trim();
+            try {
+              const evt = JSON.parse(jsonStr);
 
-            if (evt.type === "message") {
-              liveTurns.push({
-                turn: evt.round,
-                speaker: evt.speaker,
-                speakerName:
-                  evt.speaker === "buyer"
-                    ? "Mandate Buyer AI"
-                    : product.sellerName || "Direct Merchant",
-                message: evt.message,
-                proposedPrice: evt.price,
-                thought: evt.coached
-                  ? "Guardrail feedback incorporated into adjusted proposal."
-                  : undefined,
-                timestamp: new Date().toISOString(),
-              });
-
-              setActiveDeal({
-                id: `deal-${Date.now()}`,
-                productId: product.id,
-                productName: product.name,
-                category: product.category,
-                listPrice: product.listPrice,
-                agreedPrice: evt.price,
-                savings: Math.max(0, Number((product.listPrice - evt.price).toFixed(2))),
-                sellerName: product.sellerName || "Direct Merchant",
-                buyerIntent: `Procure ${product.name}`,
-                turns: [...liveTurns],
-                agreed: Boolean(evt.isDeal),
-                createdAt: new Date().toISOString(),
-              });
-            } else if (evt.type === "complete") {
-              const resData = evt.result;
-              const decision =
-                resData.status === "approved"
-                  ? "AUTO_APPROVED"
-                  : resData.status === "needs_approval"
-                  ? "NEEDS_HUMAN_APPROVAL"
-                  : "REJECTED";
-
-              setActiveGuardrail({
-                dealId: `deal-${Date.now()}`,
-                decision,
-                passedAllBlockers: resData.status !== "blocked",
-                reason: resData.reasons.join(" "),
-                checks: [
-                  {
-                    id: "GUARDRAIL_POLICY",
-                    name: "Mandate Policy Audit",
-                    rule: "Verify budget, item ceiling, and approval threshold",
-                    passed: resData.status !== "blocked",
-                    severity: "blocker",
-                    details: resData.reasons.join(" "),
-                  },
-                ],
-                evaluatedAt: new Date().toISOString(),
-                evaluatedBy: "DETERMINISTIC_ENGINE",
-              });
-
-              if (resData.transactionId) {
-                const refreshedTx: Transaction = {
-                  id: resData.transactionId,
-                  dealId: `deal-${Date.now()}`,
-                  productId: product.id,
-                  productName: product.name,
-                  category: product.category,
-                  sellerName: product.sellerName || "Direct Merchant",
-                  amount: resData.finalPrice,
-                  currency: "USD",
-                  status:
-                    resData.status === "approved"
-                      ? "PAYPAL_CAPTURED"
-                      : resData.status === "needs_approval"
-                      ? "PENDING_APPROVAL"
-                      : "REJECTED_GUARDRAIL",
-                  paymentMode: "SIMULATED_SANDBOX",
-                  guardrailResult: {
-                    dealId: `deal-${Date.now()}`,
-                    decision,
-                    passedAllBlockers: resData.status !== "blocked",
-                    reason: resData.reasons.join(" "),
-                    checks: [],
-                    evaluatedAt: new Date().toISOString(),
-                    evaluatedBy: "DETERMINISTIC_ENGINE",
-                  },
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
+              if (evt.type === "message") {
+                const turnItem: NegotiationTurn = {
+                  turn: evt.round,
+                  speaker: evt.speaker,
+                  speakerName:
+                    evt.speaker === "buyer"
+                      ? targetSide === "guarded"
+                        ? "Mandate Buyer AI"
+                        : "Unguarded Buyer AI"
+                      : product.sellerName || "Direct Merchant",
+                  message: evt.message,
+                  proposedPrice: evt.price,
+                  thought: evt.coached
+                    ? "Guardrail Coach: adjust proposal to comply with spending cap."
+                    : undefined,
+                  timestamp: new Date().toISOString(),
                 };
-                setActiveTransaction(refreshedTx);
-              }
 
-              await refreshState();
+                turnsAccumulator.push(turnItem);
+
+                if (targetSide === "unguarded") {
+                  setUnguardedTurns([...turnsAccumulator]);
+                } else {
+                  setGuardedTurns([...turnsAccumulator]);
+                }
+              } else if (evt.type === "complete") {
+                const resData = evt.result;
+                const resultObj: ResultData = {
+                  finalPrice: resData.finalPrice,
+                  status: resData.status,
+                  reasons: resData.reasons || [],
+                  savings: resData.savings || 0,
+                  listPrice: resData.listPrice,
+                  transactionId: resData.transactionId,
+                };
+
+                if (targetSide === "unguarded") {
+                  setUnguardedResult(resultObj);
+                } else {
+                  setGuardedResult(resultObj);
+                }
+              }
+            } catch (err) {
+              console.error("SSE parse error:", err);
             }
-          } catch (err) {
-            console.error("Failed to parse SSE event:", err);
           }
         }
       }
+    } catch (streamErr) {
+      console.error(`Stream error on ${targetSide}:`, streamErr);
     }
   };
 
-  // Start Negotiation with Product
-  const handleSelectProduct = async (product: CatalogProduct, userGoal?: string) => {
+  // Launch Dual Negotiation: Simultaneously runs Guarded and Unguarded agents
+  const runDualNegotiation = async (product: CatalogProduct, userGoal?: string) => {
     setIsNegotiating(true);
-    setActiveProductTitle(product.name);
-    setActiveDeal(null);
-    setActiveGuardrail(null);
-    setActiveTransaction(null);
+    setActiveProduct(product);
+    setUnguardedTurns([]);
+    setGuardedTurns([]);
+    setUnguardedResult(null);
+    setGuardedResult(null);
+
+    const goal = userGoal || `Purchase ${product.name} at best available price`;
 
     try {
-      const res = await fetch("/api/negotiate", {
+      // 1. Kick off Unguarded Negotiation Stream (Left Panel)
+      const unguardedPromise = fetch("/api/negotiate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productId: product.id,
-          userRequest: userGoal,
-          mode,
+          productName: product.name,
+          category: product.category,
+          listPrice: product.listPrice,
+          minPrice: product.minPrice || product.minReservePrice,
+          userRequest: goal,
+          mode: "unguarded",
           attackMode,
         }),
-      });
+      }).then((res) => readSSEStream(res, "unguarded", product));
 
-      if (res.headers.get("content-type")?.includes("text/event-stream")) {
-        await processStreamingNegotiation(res, product);
-      } else {
-        const data = await res.json();
-        if (data.success) {
-          setActiveDeal(data.deal);
-          setActiveGuardrail(data.guardrailResult);
-          setActiveTransaction(data.transaction);
-        }
-        await refreshState();
-      }
+      // 2. Kick off Guarded Negotiation Stream (Right Panel)
+      const guardedPromise = fetch("/api/negotiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: product.id,
+          productName: product.name,
+          category: product.category,
+          listPrice: product.listPrice,
+          minPrice: product.minPrice || product.minReservePrice,
+          userRequest: goal,
+          mode: "guarded",
+          attackMode,
+        }),
+      }).then((res) => readSSEStream(res, "guarded", product));
+
+      // Wait for both concurrent streams
+      await Promise.all([unguardedPromise, guardedPromise]);
+      await refreshState();
     } catch (err) {
-      console.error("Negotiation failed:", err);
+      console.error("Dual negotiation execution error:", err);
     } finally {
       setIsNegotiating(false);
     }
   };
 
-  // Custom Shopping Prompt
-  const handleCustomNegotiate = async (customProduct: {
+  // Select Product from Shopping Request Box
+  const handleSelectProduct = (product: CatalogProduct, userGoal?: string) => {
+    runDualNegotiation(product, userGoal);
+  };
+
+  // Custom Shopping Prompt Negotiate
+  const handleCustomNegotiate = (customProduct: {
     name: string;
     category: string;
     listPrice: number;
@@ -312,49 +297,27 @@ export default function Home() {
     sellerName: string;
     description: string;
   }) => {
-    setIsNegotiating(true);
-    setActiveProductTitle(customProduct.name);
-    setActiveDeal(null);
-    setActiveGuardrail(null);
-    setActiveTransaction(null);
+    const customItem: CatalogProduct = {
+      id: `custom-${Date.now()}`,
+      name: customProduct.name,
+      category: customProduct.category,
+      listPrice: customProduct.listPrice,
+      minReservePrice: customProduct.minReservePrice,
+      minPrice: customProduct.minReservePrice,
+      description: customProduct.description,
+      sellerName: customProduct.sellerName,
+      sellerStyle: "fair",
+      imageEmoji: "📦",
+    };
 
-    try {
-      const res = await fetch("/api/negotiate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productName: customProduct.name,
-          category: customProduct.category,
-          listPrice: customProduct.listPrice,
-          minPrice: customProduct.minReservePrice,
-          userRequest: `Purchase ${customProduct.name}`,
-          mode,
-          attackMode,
-        }),
-      });
-
-      if (res.headers.get("content-type")?.includes("text/event-stream")) {
-        await processStreamingNegotiation(res, {
-          id: `custom-${Date.now()}`,
-          name: customProduct.name,
-          category: customProduct.category,
-          listPrice: customProduct.listPrice,
-          sellerName: customProduct.sellerName,
-        });
-      }
-      await refreshState();
-    } catch (err) {
-      console.error("Custom negotiation failed:", err);
-    } finally {
-      setIsNegotiating(false);
-    }
+    runDualNegotiation(customItem, `Purchase ${customProduct.name}`);
   };
 
   // Approve Deal (Human in the Loop - Captures Order via PayPal Orders API v2)
   const handleApproveDeal = async (txId: string) => {
     setIsProcessingAction(true);
     try {
-      // 1. Create order via server-side verified create-order API
+      // 1. Create order via server-verified route
       const createRes = await fetch("/api/paypal/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -382,8 +345,13 @@ export default function Home() {
 
       const captureData = await captureRes.json();
       if (captureData.success) {
-        if (activeTransaction && activeTransaction.id === txId) {
-          setActiveTransaction(captureData.transaction);
+        // Update guarded result banner
+        if (guardedResult) {
+          setGuardedResult({
+            ...guardedResult,
+            status: "approved",
+            reasons: ["User explicitly approved high-value purchase. Payment captured on PayPal Sandbox."],
+          });
         }
         await refreshState();
       } else {
@@ -422,7 +390,7 @@ export default function Home() {
     }
   };
 
-  // Reject Deal (Human in the Loop)
+  // Reject Deal
   const handleRejectDeal = async (txId: string) => {
     setIsProcessingAction(true);
     try {
@@ -437,8 +405,12 @@ export default function Home() {
 
       const data = await res.json();
       if (data.success) {
-        if (activeTransaction && activeTransaction.id === txId) {
-          setActiveTransaction(data.transaction);
+        if (guardedResult) {
+          setGuardedResult({
+            ...guardedResult,
+            status: "blocked",
+            reasons: ["User explicitly vetoed high-value purchase."],
+          });
         }
         await refreshState();
       } else {
@@ -463,7 +435,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col text-slate-100">
-      {/* Sticky Header */}
+      {/* Sticky Header with Brand, Integration Badges & Global Kill Switch */}
       <Header
         mandate={state.mandate}
         onToggleKillSwitch={handleToggleKillSwitch}
@@ -476,97 +448,61 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Mandate & Budget Status Meter */}
-        <MandateBar
-          mandate={state.mandate}
-          onOpenEditModal={() => setIsEditModalOpen(true)}
+        {/* 1. SAVINGS SCOREBOARD BANNER */}
+        <SavingsScoreboard
+          transactions={state.transactions}
+          negotiationRuns={state.negotiationRuns}
+          remainingBudget={state.mandate.remainingBudget}
+          totalBudget={state.mandate.totalBudget}
         />
 
-        {/* Experimentation Bar: Guarded vs Unguarded & Attack Mode Simulation */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-4 shadow-lg">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="font-bold text-slate-400 uppercase tracking-wider text-[11px]">
-              Safety Mode:
-            </span>
-            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
-              <button
-                onClick={() => setMode("guarded")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  mode === "guarded"
-                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span>Guarded (Deterministic Safe)</span>
-              </button>
+        {/* 2. MANDATE PANEL (Daily budget, Cap, Threshold, Category chips & Big Red Kill Switch) */}
+        <MandatePanel
+          mandate={state.mandate}
+          onUpdateMandate={handleSaveMandate}
+          onToggleKillSwitch={handleToggleKillSwitch}
+          isTogglingKillSwitch={isTogglingKillSwitch}
+        />
 
-              <button
-                onClick={() => setMode("unguarded")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  mode === "unguarded"
-                    ? "bg-rose-600 text-white shadow-md shadow-rose-600/30"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                <Zap className="h-3.5 w-3.5" />
-                <span>Unguarded (Dumb Agent Comparison)</span>
-              </button>
-            </div>
-          </div>
+        {/* 3. SHOPPING REQUEST BOX (Natural language query + Catalog matches) */}
+        <ShoppingRequestBox
+          products={state.products}
+          mandate={state.mandate}
+          onSelectProduct={handleSelectProduct}
+          onCustomNegotiate={handleCustomNegotiate}
+          isNegotiating={isNegotiating}
+          activeProductId={activeProduct?.id}
+        />
 
-          <label className="flex items-center gap-2 cursor-pointer bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
-            <input
-              type="checkbox"
-              checked={attackMode}
-              onChange={(e) => setAttackMode(e.target.checked)}
-              className="rounded bg-slate-900 border-slate-700 text-rose-500 focus:ring-rose-500 h-4 w-4"
-            />
-            <span className="text-xs font-semibold text-rose-400 flex items-center gap-1">
-              <Skull className="h-3.5 w-3.5" />
-              Simulate Seller Price Attack
-            </span>
-          </label>
-        </div>
+        {/* 4. SPLIT-SCREEN "GUARDED VS UNGUARDED" VIEW (Side by side with Attack Mode & Approve button) */}
+        <SplitScreenArena
+          product={activeProduct}
+          attackMode={attackMode}
+          onToggleAttackMode={() => setAttackMode((prev) => !prev)}
+          isNegotiating={isNegotiating}
+          unguardedTurns={unguardedTurns}
+          guardedTurns={guardedTurns}
+          unguardedResult={unguardedResult}
+          guardedResult={guardedResult}
+          onApproveGuarded={handleApproveDeal}
+          onCheckoutPayPal={handleCheckoutPayPal}
+          isProcessingApproval={isProcessingAction}
+        />
 
-        {/* 3-Column Core Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* LEFT: Catalog & 1-Click Demo Scenarios (4 Cols) */}
-          <div className="lg:col-span-4">
-            <CatalogSection
-              products={state.products}
-              isNegotiating={isNegotiating}
-              onSelectProduct={handleSelectProduct}
-              onCustomNegotiate={handleCustomNegotiate}
-            />
-          </div>
-
-          {/* MIDDLE: Agent Negotiation Arena & Guardrail Inspector (5 Cols) */}
-          <div className="lg:col-span-5 space-y-6">
-            <NegotiationArena
-              deal={activeDeal}
-              isNegotiating={isNegotiating}
-              activeProductTitle={activeProductTitle}
-            />
-
-            <GuardrailInspector
-              guardrailResult={activeGuardrail}
-              transaction={activeTransaction}
-              onApprove={handleApproveDeal}
-              onReject={handleRejectDeal}
-              isProcessingAction={isProcessingAction}
-            />
-          </div>
-
-          {/* RIGHT: PayPal Sandbox Wallet, Transactions & Audit Ledger (3 Cols) */}
-          <div className="lg:col-span-3 space-y-6">
+        {/* 5. LEDGER & PAYPAL WALLET SECTION (3 Columns Grid) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* PayPal Sandbox Wallet Card */}
+          <div className="lg:col-span-1">
             <PayPalWalletCard
               paymentMode={envConfig?.paypalMode || "SIMULATED_SANDBOX"}
               hasPayPalKeys={Boolean(envConfig?.hasPayPalKeys)}
               transactions={state.transactions}
               remainingBudget={state.mandate.remainingBudget}
             />
+          </div>
 
+          {/* Transaction History & Order IDs */}
+          <div className="lg:col-span-1">
             <TransactionHistory
               transactions={state.transactions}
               onApprovePending={handleApproveDeal}
@@ -574,7 +510,10 @@ export default function Home() {
               onCheckoutPayPal={handleCheckoutPayPal}
               isProcessingAction={isProcessingAction}
             />
+          </div>
 
+          {/* Immutable Audit Ledger */}
+          <div className="lg:col-span-1">
             <AuditLedger logs={state.auditLogs} />
           </div>
         </div>
@@ -584,23 +523,13 @@ export default function Home() {
       <footer className="border-t border-slate-800/80 bg-slate-950 py-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>
-            <strong>Mandate</strong> — Built for the PayPal AI Hackathon
+            <strong>Mandate</strong> — Safe AI Shopping Agent Wallet for the PayPal AI Hackathon
           </span>
           <span>
-            PayPal Orders API v2 (Sandbox) • Deterministic Code Guardrails • Free-Tier Architecture
+            PayPal Orders API v2 (Sandbox) • Deterministic Code Guardrails • Free-Tier Friendly
           </span>
         </div>
       </footer>
-
-      {/* Edit Mandate Modal */}
-      {isEditModalOpen && (
-        <EditMandateModal
-          mandate={state.mandate}
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          onSave={handleSaveMandate}
-        />
-      )}
     </div>
   );
 }
