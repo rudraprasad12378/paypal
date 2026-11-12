@@ -27,9 +27,14 @@ export async function generate(
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
 
-  if (!apiKey || apiKey.trim() === "" || apiKey === "demo_key") {
+  if (
+    !apiKey ||
+    apiKey.trim() === "" ||
+    apiKey === "demo_key" ||
+    apiKey.startsWith("BROKEN_")
+  ) {
     throw new Error(
-      "Gemini API key is missing. Set GEMINI_API_KEY in your environment or use the deterministic fallback."
+      "Gemini API key is missing or simulated error. Set GEMINI_API_KEY in your environment or use the deterministic fallback."
     );
   }
 

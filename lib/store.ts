@@ -93,7 +93,9 @@ export function saveState(state: AppState): void {
   memoryState = state;
   try {
     ensureDataDir();
-    fs.writeFileSync(STORE_FILE, JSON.stringify(state, null, 2), "utf-8");
+    const tmpFile = `${STORE_FILE}.${process.pid}.${Math.random().toString(36).substring(2, 8)}.tmp`;
+    fs.writeFileSync(tmpFile, JSON.stringify(state, null, 2), "utf-8");
+    fs.renameSync(tmpFile, STORE_FILE);
   } catch (err) {
     console.warn("Error saving store to disk:", err);
   }

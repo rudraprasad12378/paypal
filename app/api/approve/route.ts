@@ -13,6 +13,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { transactionId, decision } = body; // decision: "APPROVE" | "REJECT"
 
+    const mandate = getMandate();
+    if (mandate.killSwitchActive) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Cannot approve: Emergency Kill Switch is currently active.",
+          killSwitchActive: true,
+        },
+        { status: 403 }
+      );
+    }
+
     if (!transactionId || !decision) {
       return NextResponse.json(
         { success: false, error: "Missing transactionId or decision" },

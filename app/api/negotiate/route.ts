@@ -51,11 +51,26 @@ export async function POST(req: NextRequest) {
   const spentToday = Number(body.mandate?.spentToday ?? currentStoreMandate.spentAmount);
 
   // 2. Resolve Product
-  const productId = body.productId || "gadget-1";
-  const product =
-    state.products.find((p) => p.id === productId) ||
-    INITIAL_CATALOG.find((p) => p.id === productId) || {
-      id: productId,
+  let product: {
+    id: string;
+    name: string;
+    category: string;
+    listPrice: number;
+    minPrice?: number;
+    minReservePrice?: number;
+    description?: string;
+    sellerName?: string;
+    sellerStyle?: "cooperative" | "tough" | "fair";
+    imageEmoji?: string;
+  };
+
+  if (body.productId && state.products.find((p) => p.id === body.productId)) {
+    product = { ...state.products.find((p) => p.id === body.productId)! };
+  } else if (body.productId && INITIAL_CATALOG.find((p) => p.id === body.productId)) {
+    product = { ...INITIAL_CATALOG.find((p) => p.id === body.productId)! };
+  } else {
+    product = {
+      id: body.productId || `prod-${Date.now()}`,
       name: body.productName || "Selected Item",
       category: body.category || "gadgets",
       listPrice: Number(body.listPrice) || 40.0,
@@ -66,6 +81,16 @@ export async function POST(req: NextRequest) {
       sellerStyle: "fair",
       imageEmoji: "📦",
     };
+  }
+
+  // Allow explicit property overrides if passed in request body
+  if (body.productName) product.name = body.productName;
+  if (body.category) product.category = body.category;
+  if (body.listPrice) product.listPrice = Number(body.listPrice);
+  if (body.minPrice) {
+    product.minPrice = Number(body.minPrice);
+    product.minReservePrice = Number(body.minPrice);
+  }
 
   const listPrice = product.listPrice;
   const minPrice = product.minPrice || product.minReservePrice || listPrice * 0.7;
@@ -237,9 +262,9 @@ export async function POST(req: NextRequest) {
           await new Promise((r) => setTimeout(r, 120));
         }
 
-        // If after 5 rounds no explicit deal tag, adopt compromise
+        // If after 5 rounds no explicit deal tag, adopt unresolved asking price
         if (!isDealReached) {
-          lastDealPrice = lastSellerOffer <= buyerPrivateMax ? lastSellerOffer : lastBuyerOffer;
+          lastDealPrice = lastSellerOffer;
         }
 
         // ======================================================================
@@ -279,8 +304,17 @@ export async function POST(req: NextRequest) {
             suggestion: evalResult.suggestion,
           });
 
-          // COACHING: If BLOCK, send feedback into buyer agent for ONE more negotiation attempt!
-          if (evalResult.decision === "BLOCK") {
+          // COACHING: If BLOCK and proposal is coachable (e.g. price exceeded cap, but category is valid and kill switch is OFF),
+          // send feedback into buyer agent for ONE more negotiation attempt!
+          const canCoach =
+            evalResult.decision === "BLOCK" &&
+            Boolean(evalResult.suggestion) &&
+            !mandate.killSwitch &&
+            mandate.allowedCategories.some(
+              (c) => c.toLowerCase().trim() === product.category.toLowerCase().trim()
+            );
+
+          if (canCoach) {
             sendEvent({
               type: "coaching",
               message: "Guardrail blocked proposal. Acting as coach for one final conforming attempt...",
@@ -363,6 +397,9 @@ export async function POST(req: NextRequest) {
               finalStatus = "approved";
               finalReasons = reEvaluation.reasons;
             }
+          } else if (evalResult.decision === "BLOCK") {
+            finalStatus = "blocked";
+            finalReasons = evalResult.reasons;
           } else if (evalResult.decision === "NEEDS_APPROVAL") {
             finalStatus = "needs_approval";
             finalReasons = evalResult.reasons;
@@ -415,6 +452,8 @@ export async function POST(req: NextRequest) {
               category: product.category,
               sellerName: product.sellerName || "Direct Merchant",
               amount: finalPrice,
+              listPrice,
+              attackFlag: attackMode,
               currency: "USD",
               status: "PAYPAL_CAPTURED",
               paypalOrderId: paypalOrder.orderId,
@@ -444,6 +483,8 @@ export async function POST(req: NextRequest) {
             category: product.category,
             sellerName: product.sellerName || "Direct Merchant",
             amount: finalPrice,
+            listPrice,
+            attackFlag: attackMode,
             currency: "USD",
             status: "PENDING_APPROVAL",
             paymentMode: "SIMULATED_SANDBOX",
@@ -451,6 +492,32 @@ export async function POST(req: NextRequest) {
               dealId: runId,
               decision: "NEEDS_HUMAN_APPROVAL",
               passedAllBlockers: true,
+              reason: finalReasons.join(" "),
+              checks: [],
+              evaluatedAt: new Date().toISOString(),
+              evaluatedBy: "DETERMINISTIC_ENGINE",
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        } else if (finalStatus === "blocked") {
+          addTransaction({
+            id: txId,
+            dealId: runId,
+            productId: product.id,
+            productName: product.name,
+            category: product.category,
+            sellerName: product.sellerName || "Direct Merchant",
+            amount: finalPrice,
+            listPrice,
+            attackFlag: attackMode,
+            currency: "USD",
+            status: "REJECTED_GUARDRAIL",
+            paymentMode: "SIMULATED_SANDBOX",
+            guardrailResult: {
+              dealId: runId,
+              decision: "REJECTED",
+              passedAllBlockers: false,
               reason: finalReasons.join(" "),
               checks: [],
               evaluatedAt: new Date().toISOString(),

@@ -45,3 +45,4 @@ describe("Store Management (resetStore & seedDemoData)", () => {
     expect(state.negotiationRuns?.length).toBe(9);
   });
 });
+

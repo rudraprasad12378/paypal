@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     include: ["lib/**/*.test.ts"],
+    fileParallelism: false,
     environment: "node",
   },
 });

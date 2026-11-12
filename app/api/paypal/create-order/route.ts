@@ -13,6 +13,9 @@ import { Transaction } from "@/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Module-level in-flight order promises to guarantee double-click concurrency protection
+const inFlightOrderPromises = new Map<string, Promise<Record<string, unknown>>>();
+
 /**
  * POST /api/paypal/create-order
  *
@@ -103,6 +106,20 @@ export async function POST(req: NextRequest) {
           },
           { status: 400 }
         );
+      }
+
+      // Idempotency: Double-click protection - if this transaction already has an active PayPal order, return it without creating a duplicate
+      if (targetTx.paypalOrderId) {
+        return NextResponse.json({
+          success: true,
+          orderId: targetTx.paypalOrderId,
+          approvalUrl: `https://www.sandbox.paypal.com/checkoutnow?token=${targetTx.paypalOrderId}`,
+          paymentMode: targetTx.paymentMode,
+          transactionId: targetTx.id,
+          amount: targetTx.amount,
+          productName: targetTx.productName,
+          alreadyCreated: true,
+        });
       }
 
       if (targetTx.status === "PENDING_APPROVAL") {
@@ -216,48 +233,65 @@ export async function POST(req: NextRequest) {
     const returnUrl = `${origin}/paypal/return?txId=${targetTx.id}`;
     const cancelUrl = `${origin}/paypal/cancel?txId=${targetTx.id}`;
 
-    // 6. Create PayPal Sandbox Order (POST /v2/checkout/orders)
-    const orderResult = await createPayPalOrder({
-      amount: verifiedAmount,
-      currency: targetTx.currency || "USD",
-      description: `${targetTx.productName} via Mandate AI Wallet`,
-      customId: targetTx.id,
-      productName: targetTx.productName,
-      returnUrl,
-      cancelUrl,
-    });
+    // Concurrency Deduplication: If an order creation is already in-flight for this transaction, await the same promise
+    const lockKey = targetTx.id;
+    if (inFlightOrderPromises.has(lockKey)) {
+      const cached = await inFlightOrderPromises.get(lockKey)!;
+      return NextResponse.json({ ...cached, alreadyCreated: true });
+    }
 
-    // 7. Update transaction with PayPal order id & status
-    updateTransaction(targetTx.id, {
-      paypalOrderId: orderResult.orderId,
-      status: "PAYMENT_PROCESSING",
-      paymentMode: orderResult.paymentMode,
-    });
-
-    // 8. Log PayPal order creation in audit log
-    addAuditLog({
-      eventType: "PAYPAL_ORDER_CREATED",
-      level: "info",
-      title: `PayPal Order Created (${orderResult.paymentMode})`,
-      details: `PayPal Sandbox Order #${orderResult.orderId} created for '${targetTx.productName}' ($${verifiedAmount.toFixed(2)}). Awaiting approval.`,
-      metadata: {
-        orderId: orderResult.orderId,
-        transactionId: targetTx.id,
+    const orderExecution = (async () => {
+      // 6. Create PayPal Sandbox Order (POST /v2/checkout/orders)
+      const orderResult = await createPayPalOrder({
         amount: verifiedAmount,
+        currency: targetTx.currency || "USD",
+        description: `${targetTx.productName} via Mandate AI Wallet`,
+        customId: targetTx.id,
+        productName: targetTx.productName,
+        returnUrl,
+        cancelUrl,
+      });
+
+      // 7. Update transaction with PayPal order id & status
+      updateTransaction(targetTx.id, {
+        paypalOrderId: orderResult.orderId,
+        status: "PAYMENT_PROCESSING",
+        paymentMode: orderResult.paymentMode,
+      });
+
+      // 8. Log PayPal order creation in audit log
+      addAuditLog({
+        eventType: "PAYPAL_ORDER_CREATED",
+        level: "info",
+        title: `PayPal Order Created (${orderResult.paymentMode})`,
+        details: `PayPal Sandbox Order #${orderResult.orderId} created for '${targetTx.productName}' ($${verifiedAmount.toFixed(2)}). Awaiting approval.`,
+        metadata: {
+          orderId: orderResult.orderId,
+          transactionId: targetTx.id,
+          amount: verifiedAmount,
+          approvalUrl: orderResult.approvalUrl,
+          paymentMode: orderResult.paymentMode,
+        },
+      });
+
+      return {
+        success: true,
+        orderId: orderResult.orderId,
         approvalUrl: orderResult.approvalUrl,
         paymentMode: orderResult.paymentMode,
-      },
-    });
+        transactionId: targetTx.id,
+        amount: verifiedAmount,
+        productName: targetTx.productName,
+      };
+    })();
 
-    return NextResponse.json({
-      success: true,
-      orderId: orderResult.orderId,
-      approvalUrl: orderResult.approvalUrl,
-      paymentMode: orderResult.paymentMode,
-      transactionId: targetTx.id,
-      amount: verifiedAmount,
-      productName: targetTx.productName,
-    });
+    inFlightOrderPromises.set(lockKey, orderExecution);
+    try {
+      const resultData = await orderExecution;
+      return NextResponse.json(resultData);
+    } finally {
+      inFlightOrderPromises.delete(lockKey);
+    }
   } catch (err: unknown) {
     console.error("PayPal create-order error:", err);
     return NextResponse.json(

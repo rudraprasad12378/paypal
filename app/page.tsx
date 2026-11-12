@@ -315,6 +315,7 @@ export default function Home() {
 
   // Approve Deal (Human in the Loop - Captures Order via PayPal Orders API v2)
   const handleApproveDeal = async (txId: string) => {
+    if (isProcessingAction) return; // Prevent double-click
     setIsProcessingAction(true);
     try {
       // 1. Create order via server-verified route
@@ -366,6 +367,7 @@ export default function Home() {
 
   // Launch PayPal Checkout Redirect Flow
   const handleCheckoutPayPal = async (txId: string) => {
+    if (isProcessingAction) return; // Prevent double-click
     setIsProcessingAction(true);
     try {
       const res = await fetch("/api/paypal/create-order", {
