@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { ShieldCheck, ShieldAlert, Power, RotateCcw, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { ShieldCheck, ShieldAlert, Power, RotateCcw, Sparkles, BarChart3 } from "lucide-react";
 import { Mandate } from "@/types";
 
 interface HeaderProps {
@@ -80,8 +81,16 @@ export function Header({
           </div>
         </div>
 
-        {/* Actions: Reset & Emergency Kill Switch */}
-        <div className="flex items-center gap-3">
+        {/* Actions: Navigation, Reset & Emergency Kill Switch */}
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-400 hover:text-white bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/30 transition shadow-sm"
+          >
+            <BarChart3 className="h-3.5 w-3.5" />
+            <span>Dashboard</span>
+          </Link>
+
           <button
             onClick={onResetDemo}
             disabled={isResetting}

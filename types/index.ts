@@ -98,6 +98,8 @@ export interface Transaction {
   category: string;
   sellerName: string;
   amount: number;
+  listPrice?: number;
+  attackFlag?: boolean;
   currency: string;
   status: TransactionStatus;
   guardrailResult: GuardrailEvaluation;
