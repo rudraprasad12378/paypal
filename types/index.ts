@@ -133,10 +133,27 @@ export interface AuditLog {
   metadata?: Record<string, unknown>;
 }
 
+export interface NegotiationRunRecord {
+  id: string;
+  timestamp: string;
+  productId: string;
+  productName: string;
+  category: string;
+  mode: "guarded" | "unguarded";
+  attackMode: boolean;
+  listPrice: number;
+  finalPrice: number;
+  savings: number;
+  status: "approved" | "needs_approval" | "blocked";
+  reasons: string[];
+  roundsCount: number;
+}
+
 export interface AppState {
   mandate: Mandate;
   transactions: Transaction[];
   auditLogs: AuditLog[];
   products: CatalogProduct[];
+  negotiationRuns?: NegotiationRunRecord[];
 }
 

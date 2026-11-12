@@ -10,12 +10,14 @@ import { GuardrailInspector } from "@/components/GuardrailInspector";
 import { PayPalWalletCard } from "@/components/PayPalWalletCard";
 import { TransactionHistory } from "@/components/TransactionHistory";
 import { AuditLedger } from "@/components/AuditLedger";
+import { ShieldCheck, ShieldAlert, Zap, Skull } from "lucide-react";
 import {
   AppState,
   CatalogProduct,
   DealProposal,
   GuardrailEvaluation,
   Mandate,
+  NegotiationTurn,
   Transaction,
 } from "@/types";
 
@@ -31,6 +33,10 @@ export default function Home() {
   const [state, setState] = useState<AppState | null>(null);
   const [envConfig, setEnvConfig] = useState<EnvConfig | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Mode and Security Controls
+  const [mode, setMode] = useState<"guarded" | "unguarded">("guarded");
+  const [attackMode, setAttackMode] = useState(false);
 
   // Active negotiation & inspection state
   const [activeDeal, setActiveDeal] = useState<DealProposal | null>(null);
@@ -128,6 +134,137 @@ export default function Home() {
     }
   };
 
+  // Process SSE Streaming Negotiation
+  const processStreamingNegotiation = async (
+    res: Response,
+    product: {
+      id: string;
+      name: string;
+      category: string;
+      listPrice: number;
+      sellerName?: string;
+    }
+  ) => {
+    if (!res.body) return;
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const liveTurns: NegotiationTurn[] = [];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split("\n\n");
+      buffer = chunks.pop() || "";
+
+      for (const chunk of chunks) {
+        if (chunk.startsWith("data: ")) {
+          const jsonStr = chunk.replace(/^data:\s*/, "").trim();
+          try {
+            const evt = JSON.parse(jsonStr);
+
+            if (evt.type === "message") {
+              liveTurns.push({
+                turn: evt.round,
+                speaker: evt.speaker,
+                speakerName:
+                  evt.speaker === "buyer"
+                    ? "Mandate Buyer AI"
+                    : product.sellerName || "Direct Merchant",
+                message: evt.message,
+                proposedPrice: evt.price,
+                thought: evt.coached
+                  ? "Guardrail feedback incorporated into adjusted proposal."
+                  : undefined,
+                timestamp: new Date().toISOString(),
+              });
+
+              setActiveDeal({
+                id: `deal-${Date.now()}`,
+                productId: product.id,
+                productName: product.name,
+                category: product.category,
+                listPrice: product.listPrice,
+                agreedPrice: evt.price,
+                savings: Math.max(0, Number((product.listPrice - evt.price).toFixed(2))),
+                sellerName: product.sellerName || "Direct Merchant",
+                buyerIntent: `Procure ${product.name}`,
+                turns: [...liveTurns],
+                agreed: Boolean(evt.isDeal),
+                createdAt: new Date().toISOString(),
+              });
+            } else if (evt.type === "complete") {
+              const resData = evt.result;
+              const decision =
+                resData.status === "approved"
+                  ? "AUTO_APPROVED"
+                  : resData.status === "needs_approval"
+                  ? "NEEDS_HUMAN_APPROVAL"
+                  : "REJECTED";
+
+              setActiveGuardrail({
+                dealId: `deal-${Date.now()}`,
+                decision,
+                passedAllBlockers: resData.status !== "blocked",
+                reason: resData.reasons.join(" "),
+                checks: [
+                  {
+                    id: "GUARDRAIL_POLICY",
+                    name: "Mandate Policy Audit",
+                    rule: "Verify budget, item ceiling, and approval threshold",
+                    passed: resData.status !== "blocked",
+                    severity: "blocker",
+                    details: resData.reasons.join(" "),
+                  },
+                ],
+                evaluatedAt: new Date().toISOString(),
+                evaluatedBy: "DETERMINISTIC_ENGINE",
+              });
+
+              if (resData.transactionId) {
+                const refreshedTx: Transaction = {
+                  id: resData.transactionId,
+                  dealId: `deal-${Date.now()}`,
+                  productId: product.id,
+                  productName: product.name,
+                  category: product.category,
+                  sellerName: product.sellerName || "Direct Merchant",
+                  amount: resData.finalPrice,
+                  currency: "USD",
+                  status:
+                    resData.status === "approved"
+                      ? "PAYPAL_CAPTURED"
+                      : resData.status === "needs_approval"
+                      ? "PENDING_APPROVAL"
+                      : "REJECTED_GUARDRAIL",
+                  paymentMode: "SIMULATED_SANDBOX",
+                  guardrailResult: {
+                    dealId: `deal-${Date.now()}`,
+                    decision,
+                    passedAllBlockers: resData.status !== "blocked",
+                    reason: resData.reasons.join(" "),
+                    checks: [],
+                    evaluatedAt: new Date().toISOString(),
+                    evaluatedBy: "DETERMINISTIC_ENGINE",
+                  },
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                };
+                setActiveTransaction(refreshedTx);
+              }
+
+              await refreshState();
+            }
+          } catch (err) {
+            console.error("Failed to parse SSE event:", err);
+          }
+        }
+      }
+    }
+  };
+
   // Start Negotiation with Product
   const handleSelectProduct = async (product: CatalogProduct, userGoal?: string) => {
     setIsNegotiating(true);
@@ -142,18 +279,21 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productId: product.id,
-          userGoal,
+          userRequest: userGoal,
+          mode,
+          attackMode,
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
-        setActiveDeal(data.deal);
-        setActiveGuardrail(data.guardrailResult);
-        setActiveTransaction(data.transaction);
-        await refreshState();
+      if (res.headers.get("content-type")?.includes("text/event-stream")) {
+        await processStreamingNegotiation(res, product);
       } else {
-        alert(data.message || data.error || "Negotiation stopped");
+        const data = await res.json();
+        if (data.success) {
+          setActiveDeal(data.deal);
+          setActiveGuardrail(data.guardrailResult);
+          setActiveTransaction(data.transaction);
+        }
         await refreshState();
       }
     } catch (err) {
@@ -183,21 +323,26 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customProduct,
-          userGoal: `Purchase ${customProduct.name}`,
+          productName: customProduct.name,
+          category: customProduct.category,
+          listPrice: customProduct.listPrice,
+          minPrice: customProduct.minReservePrice,
+          userRequest: `Purchase ${customProduct.name}`,
+          mode,
+          attackMode,
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
-        setActiveDeal(data.deal);
-        setActiveGuardrail(data.guardrailResult);
-        setActiveTransaction(data.transaction);
-        await refreshState();
-      } else {
-        alert(data.message || data.error || "Negotiation stopped");
-        await refreshState();
+      if (res.headers.get("content-type")?.includes("text/event-stream")) {
+        await processStreamingNegotiation(res, {
+          id: `custom-${Date.now()}`,
+          name: customProduct.name,
+          category: customProduct.category,
+          listPrice: customProduct.listPrice,
+          sellerName: customProduct.sellerName,
+        });
       }
+      await refreshState();
     } catch (err) {
       console.error("Custom negotiation failed:", err);
     } finally {
@@ -293,6 +438,53 @@ export default function Home() {
           mandate={state.mandate}
           onOpenEditModal={() => setIsEditModalOpen(true)}
         />
+
+        {/* Experimentation Bar: Guarded vs Unguarded & Attack Mode Simulation */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-4 shadow-lg">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-bold text-slate-400 uppercase tracking-wider text-[11px]">
+              Safety Mode:
+            </span>
+            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <button
+                onClick={() => setMode("guarded")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  mode === "guarded"
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                <span>Guarded (Deterministic Safe)</span>
+              </button>
+
+              <button
+                onClick={() => setMode("unguarded")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  mode === "unguarded"
+                    ? "bg-rose-600 text-white shadow-md shadow-rose-600/30"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <Zap className="h-3.5 w-3.5" />
+                <span>Unguarded (Dumb Agent Comparison)</span>
+              </button>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
+            <input
+              type="checkbox"
+              checked={attackMode}
+              onChange={(e) => setAttackMode(e.target.checked)}
+              className="rounded bg-slate-900 border-slate-700 text-rose-500 focus:ring-rose-500 h-4 w-4"
+            />
+            <span className="text-xs font-semibold text-rose-400 flex items-center gap-1">
+              <Skull className="h-3.5 w-3.5" />
+              Simulate Seller Price Attack
+            </span>
+          </label>
+        </div>
 
         {/* 3-Column Core Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

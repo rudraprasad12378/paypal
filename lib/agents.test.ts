@@ -149,3 +149,4 @@ describe("Agent Protocol & Guardrail Enforcement", () => {
     expect(sellerWordCount).toBeLessThan(60);
   });
 });
+

@@ -1,8 +1,8 @@
 {
   "mandate": {
     "totalBudget": 100,
-    "remainingBudget": 41.69,
-    "spentAmount": 58.31,
+    "remainingBudget": 100,
+    "spentAmount": 0,
     "maxItemPrice": 45,
     "approvalThreshold": 30,
     "allowedCategories": [
@@ -29,13 +29,13 @@
     ],
     "killSwitchActive": false,
     "currency": "USD",
-    "updatedAt": "2026-11-12T18:35:08.648Z"
+    "updatedAt": "2026-11-12T18:43:33.017Z"
   },
   "transactions": [],
   "auditLogs": [
     {
-      "id": "log-1794508508618",
-      "timestamp": "2026-11-12T18:35:08.618Z",
+      "id": "log-1794509013018",
+      "timestamp": "2026-11-12T18:43:33.018Z",
       "eventType": "SYSTEM_RESET",
       "level": "warning",
       "title": "System Reset Executed",
@@ -43,7 +43,7 @@
     },
     {
       "id": "log-init",
-      "timestamp": "2026-11-12T18:35:08.618Z",
+      "timestamp": "2026-11-12T18:43:33.018Z",
       "eventType": "MANDATE_INIT",
       "level": "info",
       "title": "Mandate Wallet Initialized",
@@ -195,5 +195,6 @@
       "sellerStyle": "fair",
       "imageEmoji": "🎮"
     }
-  ]
+  ],
+  "negotiationRuns": []
 }

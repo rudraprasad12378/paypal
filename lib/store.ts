@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { AppState, AuditLog, Mandate, Transaction, CatalogProduct } from "../types/index.ts";
+import type { AppState, AuditLog, Mandate, Transaction, CatalogProduct, NegotiationRunRecord } from "../types/index.ts";
 import { INITIAL_CATALOG } from "./catalog.ts";
 
 const DATA_DIR = path.join(process.cwd(), ".data");
@@ -54,6 +54,7 @@ function getInitialState(): AppState {
       },
     ],
     products: [...INITIAL_CATALOG],
+    negotiationRuns: [],
   };
 }
 
@@ -207,6 +208,27 @@ export function addAuditLog(
 
 export function getProducts(): CatalogProduct[] {
   return getState().products;
+}
+
+export function logNegotiationRun(run: NegotiationRunRecord): void {
+  const state = getState();
+  if (!state.negotiationRuns) {
+    state.negotiationRuns = [];
+  }
+  state.negotiationRuns.unshift(run);
+  if (state.negotiationRuns.length > 50) {
+    state.negotiationRuns = state.negotiationRuns.slice(0, 50);
+  }
+
+  addAuditLog({
+    eventType: "NEGOTIATION_CONCLUDED",
+    level: run.status === "approved" ? "success" : run.status === "needs_approval" ? "warning" : "danger",
+    title: `Negotiation [${run.mode.toUpperCase()}]: ${run.productName}`,
+    details: `Final: $${run.finalPrice.toFixed(2)} (${run.status.toUpperCase()}) | Savings: $${run.savings.toFixed(2)}. ${run.reasons.join(" ")}`,
+    metadata: { ...run },
+  });
+
+  saveState(state);
 }
 
 export function getProductById(id: string): CatalogProduct | undefined {

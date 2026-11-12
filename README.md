@@ -1,4 +1,4 @@
-# MANDATE 🛡️💳
+-# MANDATE 🛡️💳
 ### Safe AI Shopping Agent Wallet — Built for the PayPal AI Hackathon 2026
 
 **Mandate** is a production-grade, autonomous shopping agent wallet that proves AI agents can safely handle procurement without ever possessing unchecked authority over user funds.
