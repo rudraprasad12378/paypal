@@ -3,7 +3,9 @@ import path from "path";
 import type { AppState, AuditLog, Mandate, Transaction, CatalogProduct, NegotiationRunRecord } from "../types/index.ts";
 import { INITIAL_CATALOG } from "./catalog.ts";
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+const DATA_DIR = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+  ? path.join("/tmp", ".mandate_data")
+  : path.join(process.cwd(), ".data");
 const STORE_FILE = path.join(DATA_DIR, "mandate_store.json");
 
 export const DEFAULT_MANDATE: Mandate = {
