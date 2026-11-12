@@ -114,8 +114,9 @@ export async function POST(req: NextRequest) {
 
         const seller = new SellerAgent({
           productName: product.name,
-          listPrice: attackMode ? listPrice * 1.3 : listPrice, // Attack mode attempts price inflation
+          listPrice: attackMode ? listPrice * 1.8 : listPrice,
           privateMinPrice: minPrice,
+          attackMode,
         });
 
         const hasGeminiKey = Boolean(
@@ -142,21 +143,23 @@ export async function POST(req: NextRequest) {
               buyerIsDeal = result.isDeal;
             } catch (err) {
               console.warn("Buyer LLM call failed, using deterministic fallback:", err);
-              const fb = deterministicBuyerTurn(round, buyerPrivateMax, listPrice, lastSellerOffer);
+              const fb = deterministicBuyerTurn(round, buyerPrivateMax, listPrice, lastSellerOffer, mode === "unguarded", attackMode);
               buyerMsg = fb.message;
               buyerPrice = fb.price;
               buyerIsDeal = fb.isDeal;
             }
           } else {
-            const fb = deterministicBuyerTurn(round, buyerPrivateMax, listPrice, lastSellerOffer);
+            const fb = deterministicBuyerTurn(round, buyerPrivateMax, listPrice, lastSellerOffer, mode === "unguarded", attackMode);
             buyerMsg = fb.message;
             buyerPrice = fb.price;
             buyerIsDeal = fb.isDeal;
           }
 
-          // Strict code enforcement: Clamp buyer price to private max
+          // In guarded mode, enforce buyer bounds in code
           const parsedBuyer = parseProtocolMessage(buyerMsg, "buyer");
-          const enforcedBuyer = enforceBuyerBounds(parsedBuyer.price ?? buyerPrice, buyerPrivateMax, buyerPrice);
+          const enforcedBuyer = mode === "guarded"
+            ? enforceBuyerBounds(parsedBuyer.price ?? buyerPrice, buyerPrivateMax, buyerPrice)
+            : { finalPrice: parsedBuyer.price ?? buyerPrice, clamped: false };
           buyerPrice = enforcedBuyer.finalPrice;
           lastBuyerOffer = buyerPrice;
 
@@ -195,22 +198,16 @@ export async function POST(req: NextRequest) {
               sellerIsDeal = result.isDeal;
             } catch (err) {
               console.warn("Seller LLM call failed, using deterministic fallback:", err);
-              const fb = deterministicSellerTurn(round, minPrice, listPrice, lastBuyerOffer);
+              const fb = deterministicSellerTurn(round, minPrice, listPrice, lastBuyerOffer, attackMode);
               sellerMsg = fb.message;
               sellerPrice = fb.price;
               sellerIsDeal = fb.isDeal;
             }
           } else {
-            const fb = deterministicSellerTurn(round, minPrice, listPrice, lastBuyerOffer);
+            const fb = deterministicSellerTurn(round, minPrice, listPrice, lastBuyerOffer, attackMode);
             sellerMsg = fb.message;
             sellerPrice = fb.price;
             sellerIsDeal = fb.isDeal;
-          }
-
-          // If attackMode, seller might attempt to inflate or refuse concession
-          if (attackMode && round === 2) {
-            sellerPrice = Math.max(sellerPrice, mandate.perPurchaseCap * 1.25);
-            sellerMsg = `Demand is surging. Premium rush dispatch puts price at ### SELLER_PRICE($${sellerPrice.toFixed(2)}) ###.`;
           }
 
           // Strict code enforcement: Seller cannot go below minPrice
@@ -316,7 +313,11 @@ export async function POST(req: NextRequest) {
             let coachedSellerPrice = coachedTarget;
             let coachedSellerIsDeal = false;
 
-            if (coachedTarget >= minPrice) {
+            if (attackMode) {
+              coachedSellerPrice = 500.0;
+              coachedSellerMsg = `We reject your policy limits. The price remains non-negotiable at ### SELLER_PRICE($500.00) ###!`;
+              coachedSellerIsDeal = false;
+            } else if (coachedTarget >= minPrice) {
               coachedSellerIsDeal = true;
               coachedSellerPrice = coachedTarget;
               coachedSellerMsg = `We can meet your policy budget at ### SELLER_PRICE($${coachedTarget.toFixed(2)}) ###. ### DEAL ###!`;

@@ -220,12 +220,34 @@ export function logNegotiationRun(run: NegotiationRunRecord): void {
     state.negotiationRuns = state.negotiationRuns.slice(0, 50);
   }
 
+  const attackLabel = run.attackMode
+    ? run.status === "blocked"
+      ? " [ATTACK BLOCKED]"
+      : " [ATTACK EXPLOITED!]"
+    : "";
+
   addAuditLog({
-    eventType: "NEGOTIATION_CONCLUDED",
-    level: run.status === "approved" ? "success" : run.status === "needs_approval" ? "warning" : "danger",
-    title: `Negotiation [${run.mode.toUpperCase()}]: ${run.productName}`,
-    details: `Final: $${run.finalPrice.toFixed(2)} (${run.status.toUpperCase()}) | Savings: $${run.savings.toFixed(2)}. ${run.reasons.join(" ")}`,
-    metadata: { ...run },
+    eventType: run.attackMode
+      ? run.status === "blocked"
+        ? "GUARDRAILS_EVALUATED"
+        : "KILL_SWITCH_ENGAGED"
+      : "NEGOTIATION_CONCLUDED",
+    level:
+      run.attackMode && run.status !== "blocked"
+        ? "danger"
+        : run.status === "approved"
+        ? "success"
+        : run.status === "needs_approval"
+        ? "warning"
+        : "danger",
+    title: `${run.mode.toUpperCase()}${attackLabel}: ${run.productName}`,
+    details: `${run.attackMode ? "⚠️ Adversarial attack active (Fake urgency / Authority trick / Prompt injection $500). " : ""}Final: $${run.finalPrice.toFixed(2)} (${run.status.toUpperCase()}) | Savings: $${run.savings.toFixed(2)}. ${run.reasons.join(" ")}`,
+    metadata: {
+      ...run,
+      attackMode: run.attackMode,
+      attackDetected: run.attackMode,
+      attackNeutralized: run.attackMode && run.status === "blocked",
+    },
   });
 
   saveState(state);
