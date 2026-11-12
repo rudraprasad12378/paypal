@@ -12,11 +12,11 @@ async function runTest() {
 
   // Scenario A: Auto-approved deal (< $30)
   console.log("\n--- SCENARIO A: AUTO-APPROVED DEAL FLOW ---");
-  const mouse = initialState.products.find(p => p.id === "prod-mouse-01")!;
+  const mouse = initialState.products.find(p => p.listPrice <= 30) || initialState.products[0];
   const dealA = await runAgentNegotiation({
     product: mouse,
     mandate: initialState.mandate,
-    buyerIntent: "Buy ergonomic mouse under $25",
+    buyerIntent: "Buy item under $25",
     maxTurns: 3,
   });
   console.log(`Deal reached: $${dealA.agreedPrice.toFixed(2)} (List was $${dealA.listPrice.toFixed(2)})`);
@@ -42,11 +42,11 @@ async function runTest() {
 
   // Scenario B: Human Approval Flow (> $30 threshold)
   console.log("\n--- SCENARIO B: HUMAN APPROVAL FLOW (> $30 THRESHOLD) ---");
-  const keyboard = initialState.products.find(p => p.id === "prod-keyboard-02")!;
+  const keyboard = initialState.products.find(p => p.listPrice > 35 && p.listPrice <= 45) || initialState.products[1];
   const dealB = await runAgentNegotiation({
     product: keyboard,
     mandate: getMandate(),
-    buyerIntent: "Procure mechanical keyboard with tactile switches",
+    buyerIntent: "Procure item with standard parameters",
     maxTurns: 3,
   });
   console.log(`Deal reached: $${dealB.agreedPrice.toFixed(2)}`);
@@ -85,3 +85,4 @@ runTest().catch(err => {
   console.error("Integration test failed:", err);
   process.exit(1);
 });
+

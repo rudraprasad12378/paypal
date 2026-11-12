@@ -124,3 +124,4 @@ export function MandateBar({ mandate, onOpenEditModal }: MandateBarProps) {
     </div>
   );
 }
+

@@ -13,6 +13,11 @@ export const DEFAULT_MANDATE: Mandate = {
   maxItemPrice: 45.0,
   approvalThreshold: 30.0,
   allowedCategories: [
+    "books",
+    "gadgets",
+    "groceries",
+    "fashion",
+    "gaming",
     "Electronics",
     "Office & Desk",
     "Peripherals",

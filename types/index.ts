@@ -25,6 +25,7 @@ export interface CatalogProduct {
   category: ProductCategory | string;
   listPrice: number;
   minReservePrice: number;     // Seller's absolute bottom line
+  minPrice?: number;           // Alias for minReservePrice
   description: string;
   sellerName: string;
   sellerStyle: "cooperative" | "tough" | "fair";
@@ -138,3 +139,4 @@ export interface AppState {
   auditLogs: AuditLog[];
   products: CatalogProduct[];
 }
+

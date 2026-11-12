@@ -1,0 +1,86 @@
+[
+  {
+    "id": "book-1",
+    "name": "Distributed Cloud Systems Handbook",
+    "category": "books",
+    "listPrice": 45.0,
+    "minPrice": 31.5
+  },
+  {
+    "id": "book-2",
+    "name": "Modern Software Engineering Guide",
+    "category": "books",
+    "listPrice": 38.0,
+    "minPrice": 26.6
+  },
+  {
+    "id": "gadget-1",
+    "name": "Wireless Noise-Canceling Earbuds",
+    "category": "gadgets",
+    "listPrice": 49.99,
+    "minPrice": 34.99
+  },
+  {
+    "id": "gadget-2",
+    "name": "USB-C Multiport Hub 7-in-1",
+    "category": "gadgets",
+    "listPrice": 29.99,
+    "minPrice": 19.5
+  },
+  {
+    "id": "grocery-1",
+    "name": "Artisan Single-Origin Coffee Beans 1kg",
+    "category": "groceries",
+    "listPrice": 24.5,
+    "minPrice": 16.0
+  },
+  {
+    "id": "grocery-2",
+    "name": "Organic Extra Virgin Olive Oil 750ml",
+    "category": "groceries",
+    "listPrice": 18.0,
+    "minPrice": 12.5
+  },
+  {
+    "id": "grocery-3",
+    "name": "Pure Japanese Ceremonial Matcha 100g",
+    "category": "groceries",
+    "listPrice": 28.0,
+    "minPrice": 19.6
+  },
+  {
+    "id": "fashion-1",
+    "name": "Water-Resistant Commuter Backpack",
+    "category": "fashion",
+    "listPrice": 42.0,
+    "minPrice": 29.0
+  },
+  {
+    "id": "fashion-2",
+    "name": "Polarized UV400 Classic Sunglasses",
+    "category": "fashion",
+    "listPrice": 22.0,
+    "minPrice": 14.5
+  },
+  {
+    "id": "fashion-3",
+    "name": "Minimalist Slim RFID Leather Wallet",
+    "category": "fashion",
+    "listPrice": 26.0,
+    "minPrice": 17.0
+  },
+  {
+    "id": "gaming-1",
+    "name": "RGB Mechanical Gaming Keyboard",
+    "category": "gaming",
+    "listPrice": 44.0,
+    "minPrice": 30.8
+  },
+  {
+    "id": "gaming-2",
+    "name": "Ultralight Ergonomic Gaming Mouse",
+    "category": "gaming",
+    "listPrice": 35.0,
+    "minPrice": 23.0
+  }
+]

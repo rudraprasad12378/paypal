@@ -9,7 +9,11 @@
  *    ensuring the demo never breaks during hackathon presentation.
  */
 
-const PAYPAL_SANDBOX_BASE = "https://api-m.sandbox.paypal.com";
+const getPayPalBaseUrl = () =>
+  process.env.PAYPAL_BASE_URL || "https://api-m.sandbox.paypal.com";
+
+const getPayPalSecret = () =>
+  process.env.PAYPAL_SECRET || process.env.PAYPAL_CLIENT_SECRET || "";
 
 export interface PayPalOrderParams {
   amount: number;
@@ -38,7 +42,7 @@ async function getPayPalAccessToken(
 ): Promise<string> {
   const auth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
-  const response = await fetch(`${PAYPAL_SANDBOX_BASE}/v1/oauth2/token`, {
+  const response = await fetch(`${getPayPalBaseUrl()}/v1/oauth2/token`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${auth}`,
@@ -65,7 +69,7 @@ export async function createPayPalOrder(
   params: PayPalOrderParams
 ): Promise<PayPalOrderResult> {
   const clientId = process.env.PAYPAL_CLIENT_ID;
-  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+  const clientSecret = getPayPalSecret();
 
   // Fallback to Sandbox Simulation if credentials are missing
   if (!clientId || !clientSecret || clientId === "mock" || clientId === "") {
@@ -94,7 +98,7 @@ export async function createPayPalOrder(
     const token = await getPayPalAccessToken(clientId, clientSecret);
     const requestId = `req-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
-    const res = await fetch(`${PAYPAL_SANDBOX_BASE}/v2/checkout/orders`, {
+    const res = await fetch(`${getPayPalBaseUrl()}/v2/checkout/orders`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -158,7 +162,7 @@ export async function capturePayPalOrder(
   orderId: string
 ): Promise<PayPalOrderResult> {
   const clientId = process.env.PAYPAL_CLIENT_ID;
-  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+  const clientSecret = getPayPalSecret();
 
   // If in simulated sandbox mode or missing credentials
   if (
@@ -198,7 +202,7 @@ export async function capturePayPalOrder(
     const token = await getPayPalAccessToken(clientId, clientSecret);
 
     const res = await fetch(
-      `${PAYPAL_SANDBOX_BASE}/v2/checkout/orders/${orderId}/capture`,
+      `${getPayPalBaseUrl()}/v2/checkout/orders/${orderId}/capture`,
       {
         method: "POST",
         headers: {
@@ -239,3 +243,4 @@ export async function capturePayPalOrder(
     };
   }
 }
+

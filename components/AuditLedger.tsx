@@ -66,3 +66,4 @@ export function AuditLedger({ logs }: AuditLedgerProps) {
     </div>
   );
 }
+

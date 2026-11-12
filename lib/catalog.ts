@@ -1,70 +1,82 @@
 import type { CatalogProduct } from "../types/index";
+import fs from "fs";
+import path from "path";
 
-export const INITIAL_CATALOG: CatalogProduct[] = [
+interface RawProduct {
+  id: string;
+  name: string;
+  category: string;
+  listPrice: number;
+  minPrice: number;
+}
+
+const CATEGORY_EMOJIS: Record<string, string> = {
+  books: "📚",
+  gadgets: "🎧",
+  groceries: "🥑",
+  fashion: "🎒",
+  gaming: "🎮",
+  peripherals: "🖱️",
+  electronics: "⌨️",
+  accessories: "🔌",
+  "office & desk": "💡",
+  prohibited: "🪙",
+};
+
+function getEmojiForCategory(category: string): string {
+  return CATEGORY_EMOJIS[category.toLowerCase()] || "📦";
+}
+
+function loadProductsFromFile(): CatalogProduct[] {
+  try {
+    const filePath = path.join(process.cwd(), "data", "products.json");
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const rawList = JSON.parse(content) as RawProduct[];
+      return rawList.map((p) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        listPrice: p.listPrice,
+        minReservePrice: p.minPrice,
+        minPrice: p.minPrice,
+        description: `${p.name} in category ${p.category}.`,
+        sellerName: `${p.category.charAt(0).toUpperCase() + p.category.slice(1)} Direct`,
+        sellerStyle: "fair",
+        imageEmoji: getEmojiForCategory(p.category),
+      }));
+    }
+  } catch (err) {
+    console.warn("Could not read data/products.json, using fallback catalog:", err);
+  }
+  return [];
+}
+
+const fileProducts = loadProductsFromFile();
+
+export const INITIAL_CATALOG: CatalogProduct[] = fileProducts.length > 0 ? fileProducts : [
   {
-    id: "prod-mouse-01",
-    name: "Ergonomic Vertical Mouse",
-    category: "Peripherals",
-    listPrice: 28.0,
-    minReservePrice: 19.0,
-    description: "Wireless 2.4GHz ergonomic mouse designed to reduce wrist strain.",
-    sellerName: "Apex Peripherals",
-    sellerStyle: "cooperative",
-    imageEmoji: "🖱️",
-  },
-  {
-    id: "prod-keyboard-02",
-    name: "Compact Mechanical Keyboard (Brown Switches)",
-    category: "Electronics",
-    listPrice: 42.0,
-    minReservePrice: 32.0,
-    description: "65% layout hot-swappable mechanical keyboard with quiet tactile switches.",
-    sellerName: "KeyCraft Labs",
+    id: "gadget-1",
+    name: "Wireless Noise-Canceling Earbuds",
+    category: "gadgets",
+    listPrice: 49.99,
+    minReservePrice: 34.99,
+    minPrice: 34.99,
+    description: "Wireless earbuds with active noise cancellation.",
+    sellerName: "Gadgets Direct",
     sellerStyle: "fair",
-    imageEmoji: "⌨️",
+    imageEmoji: "🎧",
   },
   {
-    id: "prod-hub-03",
-    name: "7-in-1 USB-C Travel Dock",
-    category: "Accessories",
-    listPrice: 35.0,
-    minReservePrice: 24.0,
-    description: "100W Power Delivery, 4K HDMI, Gigabit Ethernet, SD card reader.",
-    sellerName: "TechHub Direct",
-    sellerStyle: "cooperative",
-    imageEmoji: "🔌",
-  },
-  {
-    id: "prod-lamp-04",
-    name: "Smart LED Desk Lamp w/ Wireless Charger",
-    category: "Office & Desk",
-    listPrice: 29.5,
-    minReservePrice: 21.0,
-    description: "Dimmable eye-care lighting with integrated Qi wireless charging pad.",
-    sellerName: "Lumina Home & Office",
+    id: "gaming-1",
+    name: "RGB Mechanical Gaming Keyboard",
+    category: "gaming",
+    listPrice: 44.0,
+    minReservePrice: 30.8,
+    minPrice: 30.8,
+    description: "Mechanical switches with RGB lighting.",
+    sellerName: "Gaming Direct",
     sellerStyle: "fair",
-    imageEmoji: "💡",
-  },
-  {
-    id: "prod-monitor-05",
-    name: "34-inch Curved Ultrawide Display",
-    category: "Electronics",
-    listPrice: 189.0,
-    minReservePrice: 145.0,
-    description: "144Hz WQHD curved display. [Note: Intentionally exceeds standard budget for testing].",
-    sellerName: "UltraVision Tech",
-    sellerStyle: "tough",
-    imageEmoji: "🖥️",
-  },
-  {
-    id: "prod-crypto-06",
-    name: "Crypto Mining Cloud Voucher",
-    category: "Prohibited",
-    listPrice: 40.0,
-    minReservePrice: 30.0,
-    description: "High yield cloud hashing tokens. [Note: Prohibited category & keyword test].",
-    sellerName: "ShadowChain Ltd",
-    sellerStyle: "tough",
-    imageEmoji: "🪙",
+    imageEmoji: "🎮",
   },
 ];

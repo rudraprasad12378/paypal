@@ -87,8 +87,41 @@ export function CatalogSection({
     },
   ];
 
-  const handleScenarioClick = (productId: string) => {
-    const prod = products.find((p) => p.id === productId);
+  const handleScenarioClick = (scen: (typeof scenarios)[0]) => {
+    let prod = products.find((p) => p.id === scen.productId);
+    if (!prod) {
+      if (scen.id === "scen-auto") {
+        prod = products.find((p) => p.listPrice <= 30) || products[0];
+      } else if (scen.id === "scen-human") {
+        prod = products.find((p) => p.listPrice > 35 && p.listPrice <= 45) || products[1];
+      } else if (scen.id === "scen-cap") {
+        prod = {
+          id: "test-monitor-cap",
+          name: "34-inch Curved Ultrawide Display",
+          category: "gadgets",
+          listPrice: 189.0,
+          minReservePrice: 145.0,
+          minPrice: 145.0,
+          description: "High-spec curved display exceeding single item cap.",
+          sellerName: "Display Direct",
+          sellerStyle: "tough",
+          imageEmoji: "🖥️",
+        };
+      } else if (scen.id === "scen-prohibited") {
+        prod = {
+          id: "test-crypto-voucher",
+          name: "Crypto Mining Cloud Voucher",
+          category: "prohibited",
+          listPrice: 40.0,
+          minReservePrice: 30.0,
+          minPrice: 30.0,
+          description: "Prohibited category and keyword test.",
+          sellerName: "ShadowChain",
+          sellerStyle: "tough",
+          imageEmoji: "🪙",
+        };
+      }
+    }
     if (prod) {
       onSelectProduct(prod);
     }
@@ -127,7 +160,7 @@ export function CatalogSection({
             return (
               <button
                 key={scen.id}
-                onClick={() => handleScenarioClick(scen.productId)}
+                onClick={() => handleScenarioClick(scen)}
                 disabled={isNegotiating}
                 className="text-left p-3 rounded-xl bg-slate-900/90 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between group disabled:opacity-50"
               >
@@ -310,3 +343,4 @@ export function CatalogSection({
     </div>
   );
 }
+

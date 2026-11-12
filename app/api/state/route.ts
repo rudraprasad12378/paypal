@@ -9,7 +9,7 @@ export async function GET() {
   );
   const hasPayPalKeys = Boolean(
     process.env.PAYPAL_CLIENT_ID &&
-      process.env.PAYPAL_CLIENT_SECRET &&
+      (process.env.PAYPAL_SECRET || process.env.PAYPAL_CLIENT_SECRET) &&
       process.env.PAYPAL_CLIENT_ID !== "mock"
   );
 
@@ -24,3 +24,4 @@ export async function GET() {
     },
   });
 }
+
