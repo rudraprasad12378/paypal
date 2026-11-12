@@ -350,30 +350,73 @@ export default function Home() {
     }
   };
 
-  // Approve Deal (Human in the Loop)
+  // Approve Deal (Human in the Loop - Captures Order via PayPal Orders API v2)
   const handleApproveDeal = async (txId: string) => {
     setIsProcessingAction(true);
     try {
-      const res = await fetch("/api/approve", {
+      // 1. Create order via server-side verified create-order API
+      const createRes = await fetch("/api/paypal/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           transactionId: txId,
-          decision: "APPROVE",
+          userApproved: true,
+        }),
+      });
+
+      const createData = await createRes.json();
+      if (!createData.success) {
+        alert(createData.error || "Failed to create PayPal order");
+        return;
+      }
+
+      // 2. Capture payment via PayPal Orders API v2
+      const captureRes = await fetch("/api/paypal/capture-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: createData.orderId,
+          transactionId: txId,
+        }),
+      });
+
+      const captureData = await captureRes.json();
+      if (captureData.success) {
+        if (activeTransaction && activeTransaction.id === txId) {
+          setActiveTransaction(captureData.transaction);
+        }
+        await refreshState();
+      } else {
+        alert(captureData.error || "Failed to capture PayPal transaction");
+      }
+    } catch (err) {
+      console.error("Approval error:", err);
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  // Launch PayPal Checkout Redirect Flow
+  const handleCheckoutPayPal = async (txId: string) => {
+    setIsProcessingAction(true);
+    try {
+      const res = await fetch("/api/paypal/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transactionId: txId,
+          userApproved: true,
         }),
       });
 
       const data = await res.json();
-      if (data.success) {
-        if (activeTransaction && activeTransaction.id === txId) {
-          setActiveTransaction(data.transaction);
-        }
-        await refreshState();
+      if (data.success && data.approvalUrl) {
+        window.location.href = data.approvalUrl;
       } else {
-        alert(data.error || "Failed to approve transaction");
+        alert(data.error || "Failed to generate PayPal checkout session");
       }
     } catch (err) {
-      console.error("Approval error:", err);
+      console.error("PayPal checkout redirect error:", err);
     } finally {
       setIsProcessingAction(false);
     }
@@ -528,6 +571,7 @@ export default function Home() {
               transactions={state.transactions}
               onApprovePending={handleApproveDeal}
               onRejectPending={handleRejectDeal}
+              onCheckoutPayPal={handleCheckoutPayPal}
               isProcessingAction={isProcessingAction}
             />
 

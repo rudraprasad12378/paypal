@@ -5,7 +5,6 @@ import {
   Receipt,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
   Clock,
   ExternalLink,
   ChevronDown,
@@ -17,6 +16,7 @@ interface TransactionHistoryProps {
   transactions: Transaction[];
   onApprovePending?: (txId: string) => void;
   onRejectPending?: (txId: string) => void;
+  onCheckoutPayPal?: (txId: string) => void;
   isProcessingAction?: boolean;
 }
 
@@ -24,6 +24,7 @@ export function TransactionHistory({
   transactions,
   onApprovePending,
   onRejectPending,
+  onCheckoutPayPal,
   isProcessingAction,
 }: TransactionHistoryProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -42,6 +43,12 @@ export function TransactionHistory({
             <Clock className="h-3 w-3" /> Needs Approval
           </span>
         );
+      case "PAYMENT_PROCESSING":
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/30 flex items-center gap-1 animate-pulse">
+            <Clock className="h-3 w-3" /> Processing
+          </span>
+        );
       case "REJECTED_GUARDRAIL":
         return (
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 flex items-center gap-1">
@@ -52,6 +59,12 @@ export function TransactionHistory({
         return (
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
             <XCircle className="h-3 w-3" /> User Vetoed
+          </span>
+        );
+      case "PAYMENT_FAILED":
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+            <XCircle className="h-3 w-3" /> Payment Failed
           </span>
         );
       default:
@@ -129,18 +142,28 @@ export function TransactionHistory({
 
                 {/* Inline Action for Pending Approvals */}
                 {tx.status === "PENDING_APPROVAL" && onApprovePending && onRejectPending && (
-                  <div className="mt-2 pt-2 border-t border-slate-800 flex items-center gap-2">
+                  <div className="mt-2 pt-2 border-t border-slate-800 flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => onApprovePending(tx.id)}
                       disabled={isProcessingAction}
-                      className="flex-1 py-1 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition shadow disabled:opacity-50"
+                      className="flex-1 py-1 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition shadow disabled:opacity-50"
                     >
                       Approve &amp; Pay
                     </button>
+                    {onCheckoutPayPal && (
+                      <button
+                        onClick={() => onCheckoutPayPal(tx.id)}
+                        disabled={isProcessingAction}
+                        className="py-1 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition shadow flex items-center gap-1 disabled:opacity-50"
+                      >
+                        <span>PayPal Checkout</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </button>
+                    )}
                     <button
                       onClick={() => onRejectPending(tx.id)}
                       disabled={isProcessingAction}
-                      className="flex-1 py-1 px-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/40 text-rose-300 font-bold text-[11px] transition disabled:opacity-50"
+                      className="py-1 px-2.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/40 text-rose-300 font-bold text-[11px] transition disabled:opacity-50"
                     >
                       Reject
                     </button>
@@ -155,11 +178,18 @@ export function TransactionHistory({
                       <span className="font-mono text-slate-200">{tx.id}</span>
                     </div>
                     {tx.paypalOrderId && (
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
                         <span className="text-slate-400">PayPal Order ID:</span>
-                        <span className="font-mono text-blue-400">
+                        <a
+                          href={`https://www.sandbox.paypal.com/checkoutnow?token=${tx.paypalOrderId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-blue-400 hover:underline flex items-center gap-1"
+                          title="View on PayPal Sandbox"
+                        >
                           {tx.paypalOrderId}
-                        </span>
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
                       </div>
                     )}
                     {tx.paypalCaptureId && (
@@ -193,4 +223,3 @@ export function TransactionHistory({
     </div>
   );
 }
-
