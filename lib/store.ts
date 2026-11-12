@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { AppState, AuditLog, Mandate, Transaction, CatalogProduct } from "@/types";
-import { INITIAL_CATALOG } from "./catalog";
+import type { AppState, AuditLog, Mandate, Transaction, CatalogProduct } from "../types/index.ts";
+import { INITIAL_CATALOG } from "./catalog.ts";
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const STORE_FILE = path.join(DATA_DIR, "mandate_store.json");

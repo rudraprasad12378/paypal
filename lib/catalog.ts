@@ -1,4 +1,4 @@
-import { CatalogProduct } from "@/types";
+import type { CatalogProduct } from "../types/index";
 
 export const INITIAL_CATALOG: CatalogProduct[] = [
   {
