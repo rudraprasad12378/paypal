@@ -27,15 +27,15 @@
       "adult",
       "gift card"
     ],
-    "killSwitchActive": false,
+    "killSwitchActive": true,
     "currency": "USD",
-    "updatedAt": "2026-11-12T18:50:47.930Z"
+    "updatedAt": "2026-11-12T19:38:12.794Z"
   },
   "transactions": [],
   "auditLogs": [
     {
-      "id": "log-1794509447931",
-      "timestamp": "2026-11-12T18:50:47.931Z",
+      "id": "log-1794512291708",
+      "timestamp": "2026-11-12T19:38:11.708Z",
       "eventType": "SYSTEM_RESET",
       "level": "warning",
       "title": "System Reset Executed",
@@ -43,7 +43,7 @@
     },
     {
       "id": "log-init",
-      "timestamp": "2026-11-12T18:50:47.931Z",
+      "timestamp": "2026-11-12T19:38:11.708Z",
       "eventType": "MANDATE_INIT",
       "level": "info",
       "title": "Mandate Wallet Initialized",
