@@ -1,8 +1,8 @@
 {
   "mandate": {
-    "totalBudget": 1000,
-    "remainingBudget": 931.58,
-    "spentAmount": 68.42,
+    "totalBudget": 100,
+    "remainingBudget": 100,
+    "spentAmount": 0,
     "maxItemPrice": 45,
     "approvalThreshold": 30,
     "allowedCategories": [
@@ -29,111 +29,13 @@
     ],
     "killSwitchActive": false,
     "currency": "USD",
-    "updatedAt": "2026-11-20T11:10:52.001Z"
+    "updatedAt": "2026-11-20T11:30:06.809Z"
   },
-  "transactions": [
-    {
-      "id": "tx-1795172988789-jgsg",
-      "dealId": "run-1795172988775-9rle",
-      "productId": "gadget-1",
-      "productName": "Wireless Noise-Canceling Earbuds",
-      "category": "gadgets",
-      "sellerName": "Gadgets Direct",
-      "amount": 38.87,
-      "listPrice": 49.99,
-      "attackFlag": false,
-      "currency": "USD",
-      "status": "PAYPAL_CAPTURED",
-      "paymentMode": "SIMULATED_SANDBOX",
-      "guardrailResult": {
-        "dealId": "run-1795172988775-9rle",
-        "decision": "NEEDS_HUMAN_APPROVAL",
-        "passedAllBlockers": true,
-        "reason": "Price $38.87 exceeds approval threshold of $30.00. Requires human authorization.",
-        "checks": [],
-        "evaluatedAt": "2026-11-20T11:09:48.790Z",
-        "evaluatedBy": "DETERMINISTIC_ENGINE"
-      },
-      "createdAt": "2026-11-20T11:09:48.790Z",
-      "updatedAt": "2026-11-20T11:10:52.005Z",
-      "paypalOrderId": "ORD-SANDBOX-MWOVOMYM-QGUP",
-      "paypalCaptureId": "CAP-SANDBOX-MWOVONZ3-MOVB"
-    },
-    {
-      "id": "tx-1795172748401-0nbc",
-      "dealId": "run-1795172748392-iie5",
-      "productId": "book-2",
-      "productName": "Modern Software Engineering Guide",
-      "category": "books",
-      "sellerName": "Books Direct",
-      "amount": 29.55,
-      "listPrice": 38,
-      "attackFlag": false,
-      "currency": "USD",
-      "status": "PAYPAL_CAPTURED",
-      "paypalOrderId": "ORD-SANDBOX-MWOVI5PU-S27N",
-      "paypalCaptureId": "CAP-SANDBOX-MWOVI5PU-OK8B",
-      "paymentMode": "SIMULATED_SANDBOX",
-      "guardrailResult": {
-        "dealId": "run-1795172748392-iie5",
-        "decision": "AUTO_APPROVED",
-        "passedAllBlockers": true,
-        "reason": "Price $29.55 is within all mandate limits and approved for autonomous payment.",
-        "checks": [],
-        "evaluatedAt": "2026-11-20T11:05:48.408Z",
-        "evaluatedBy": "DETERMINISTIC_ENGINE"
-      },
-      "createdAt": "2026-11-20T11:05:48.408Z",
-      "updatedAt": "2026-11-20T11:05:48.408Z"
-    }
-  ],
+  "transactions": [],
   "auditLogs": [
     {
-      "eventType": "PAYPAL_PAYMENT_CAPTURED",
-      "level": "success",
-      "title": "Payment Captured via PayPal Sandbox (SIMULATED_SANDBOX)",
-      "details": "Successfully captured $38.87 for 'Wireless Noise-Canceling Earbuds'. PayPal Capture ID: CAP-SANDBOX-MWOVONZ3-MOVB. Order ID: ORD-SANDBOX-MWOVOMYM-QGUP. Remaining budget: $931.58.",
-      "metadata": {
-        "orderId": "ORD-SANDBOX-MWOVOMYM-QGUP",
-        "captureId": "CAP-SANDBOX-MWOVONZ3-MOVB",
-        "amount": 38.87,
-        "paymentMode": "SIMULATED_SANDBOX",
-        "transactionId": "tx-1795172988789-jgsg",
-        "remainingBudget": 931.58
-      },
-      "id": "log-1795173052013-klan",
-      "timestamp": "2026-11-20T11:10:52.013Z"
-    },
-    {
-      "eventType": "PAYPAL_ORDER_CREATED",
-      "level": "info",
-      "title": "PayPal Order Created (SIMULATED_SANDBOX)",
-      "details": "PayPal Sandbox Order #ORD-SANDBOX-MWOVOMYM-QGUP created for 'Wireless Noise-Canceling Earbuds' ($38.87). Awaiting approval.",
-      "metadata": {
-        "orderId": "ORD-SANDBOX-MWOVOMYM-QGUP",
-        "transactionId": "tx-1795172988789-jgsg",
-        "amount": 38.87,
-        "approvalUrl": "http://172.16.0.2:3000/paypal/return?txId=tx-1795172988789-jgsg&token=ORD-SANDBOX-MWOVOMYM-QGUP&PayerID=MOCKPAYER123",
-        "paymentMode": "SIMULATED_SANDBOX"
-      },
-      "id": "log-1795173050694-8mdg",
-      "timestamp": "2026-11-20T11:10:50.694Z"
-    },
-    {
-      "eventType": "HUMAN_APPROVED",
-      "level": "success",
-      "title": "Deal Authorized by User: Wireless Noise-Canceling Earbuds",
-      "details": "User approved high-value purchase proposal ($38.87). Proceeding with PayPal Sandbox order creation.",
-      "metadata": {
-        "transactionId": "tx-1795172988789-jgsg",
-        "amount": 38.87
-      },
-      "id": "log-1795173050682-thr0",
-      "timestamp": "2026-11-20T11:10:50.682Z"
-    },
-    {
-      "id": "log-1795172722697",
-      "timestamp": "2026-11-20T11:05:22.697Z",
+      "id": "log-1795173921993",
+      "timestamp": "2026-11-20T11:25:21.993Z",
       "eventType": "SYSTEM_RESET",
       "level": "warning",
       "title": "System Reset Executed",
@@ -141,7 +43,7 @@
     },
     {
       "id": "log-init",
-      "timestamp": "2026-11-20T11:05:22.697Z",
+      "timestamp": "2026-11-20T11:25:21.993Z",
       "eventType": "MANDATE_INIT",
       "level": "info",
       "title": "Mandate Wallet Initialized",
@@ -294,74 +196,5 @@
       "imageEmoji": "🎮"
     }
   ],
-  "negotiationRuns": [
-    {
-      "id": "run-1795172988775-9rle",
-      "timestamp": "2026-11-20T11:09:48.775Z",
-      "productId": "gadget-1",
-      "productName": "Wireless Noise-Canceling Earbuds",
-      "category": "gadgets",
-      "mode": "guarded",
-      "attackMode": false,
-      "listPrice": 49.99,
-      "finalPrice": 38.87,
-      "savings": 11.12,
-      "status": "needs_approval",
-      "reasons": [
-        "Price $38.87 exceeds approval threshold of $30.00. Requires human authorization."
-      ],
-      "roundsCount": 4
-    },
-    {
-      "id": "run-1795172988727-f8kf",
-      "timestamp": "2026-11-20T11:09:48.727Z",
-      "productId": "gadget-1",
-      "productName": "Wireless Noise-Canceling Earbuds",
-      "category": "gadgets",
-      "mode": "unguarded",
-      "attackMode": false,
-      "listPrice": 49.99,
-      "finalPrice": 38.87,
-      "savings": 11.12,
-      "status": "approved",
-      "reasons": [
-        "Unguarded mode: guardrails skipped. Transaction authorized without spending or category checks (Dumb Agent baseline)."
-      ],
-      "roundsCount": 4
-    },
-    {
-      "id": "run-1795172748392-iie5",
-      "timestamp": "2026-11-20T11:05:48.392Z",
-      "productId": "book-2",
-      "productName": "Modern Software Engineering Guide",
-      "category": "books",
-      "mode": "guarded",
-      "attackMode": false,
-      "listPrice": 38,
-      "finalPrice": 29.55,
-      "savings": 8.45,
-      "status": "approved",
-      "reasons": [
-        "Price $29.55 is within all mandate limits and approved for autonomous payment."
-      ],
-      "roundsCount": 4
-    },
-    {
-      "id": "run-1795172748360-19fq",
-      "timestamp": "2026-11-20T11:05:48.360Z",
-      "productId": "book-2",
-      "productName": "Modern Software Engineering Guide",
-      "category": "books",
-      "mode": "unguarded",
-      "attackMode": false,
-      "listPrice": 38,
-      "finalPrice": 29.55,
-      "savings": 8.45,
-      "status": "approved",
-      "reasons": [
-        "Unguarded mode: guardrails skipped. Transaction authorized without spending or category checks (Dumb Agent baseline)."
-      ],
-      "roundsCount": 4
-    }
-  ]
+  "negotiationRuns": []
 }
