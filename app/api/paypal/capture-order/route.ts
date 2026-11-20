@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getMandate,
   getTransactions,
+  getState,
   updateTransaction,
   addAuditLog,
   deductBudget,
@@ -82,8 +83,54 @@ export async function POST(req: NextRequest) {
           (transactionId && t.id === transactionId)
       );
 
-      // Idempotency: If already captured, return success immediately
-      if (tx && tx.status === "PAYPAL_CAPTURED") {
+      // Verify transaction exists
+      if (!tx) {
+        return {
+          status: 404,
+          body: {
+            success: false,
+            error: `Transaction record not found for order #${orderId}. Cannot capture untracked order.`,
+          },
+        };
+      }
+
+      // CRITICAL SECURITY ENFORCEMENT: Reject Unguarded Simulation Transactions
+      const state = getState();
+      const linkedRun = state.negotiationRuns?.find((r) => r.id === tx.dealId);
+      if (linkedRun && linkedRun.mode === "unguarded") {
+        return {
+          status: 403,
+          body: {
+            success: false,
+            error: "Security Violation: Unguarded simulation transactions cannot be captured.",
+          },
+        };
+      }
+
+      // Check if human approval is pending or transaction was rejected
+      if (tx.status === "PENDING_APPROVAL") {
+        return {
+          status: 403,
+          body: {
+            success: false,
+            error: `Security Violation: Transaction #${tx.id} requires explicit human approval before payment can be captured.`,
+            needsApproval: true,
+          },
+        };
+      }
+
+      if (tx.status === "REJECTED_GUARDRAIL" || tx.status === "REJECTED_HUMAN") {
+        return {
+          status: 403,
+          body: {
+            success: false,
+            error: `Security Violation: Transaction #${tx.id} was rejected (${tx.status}). Payment capture is forbidden.`,
+          },
+        };
+      }
+
+      // Idempotency: If already captured, return success immediately without re-capturing or re-deducting budget
+      if (tx.status === "PAYPAL_CAPTURED") {
         return {
           status: 200,
           body: {
@@ -103,7 +150,7 @@ export async function POST(req: NextRequest) {
 
       if (captureResult.status === "COMPLETED") {
         const captureId = captureResult.captureId || `CAP-${Date.now()}`;
-        const amountToDeduct = tx ? tx.amount : 0;
+        const amountToDeduct = tx.amount;
 
         // 4. Deduct budget in store
         if (amountToDeduct > 0) {

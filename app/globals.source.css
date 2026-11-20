@@ -27,3 +27,4 @@
 .animate-message-in {
   animation: messageIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+

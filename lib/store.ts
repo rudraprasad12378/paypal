@@ -164,6 +164,14 @@ export function getTransactions(): Transaction[] {
 
 export function addTransaction(transaction: Transaction): Transaction {
   const state = getState();
+  const existingIndex = state.transactions.findIndex(
+    (t) =>
+      t.id === transaction.id ||
+      (transaction.paypalOrderId && Boolean(t.paypalOrderId) && t.paypalOrderId === transaction.paypalOrderId)
+  );
+  if (existingIndex !== -1) {
+    return state.transactions[existingIndex];
+  }
   state.transactions.unshift(transaction);
   saveState(state);
   return transaction;

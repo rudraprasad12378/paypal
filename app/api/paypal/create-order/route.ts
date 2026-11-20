@@ -33,6 +33,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const { transactionId, dealId, runId, userApproved } = body;
 
+    // Concurrency Deduplication: If an order creation is already in-flight for this transaction/run, await the same promise
+    const initialLockKey = transactionId || dealId || runId;
+    if (initialLockKey && inFlightOrderPromises.has(initialLockKey)) {
+      const cached = await inFlightOrderPromises.get(initialLockKey)!;
+      return NextResponse.json({ ...cached, alreadyCreated: true });
+    }
+
     const mandate = getMandate();
 
     // 1. Enforce Emergency Kill Switch
@@ -73,6 +80,17 @@ export async function POST(req: NextRequest) {
         (transactionId && r.id === transactionId)
     );
 
+    // CRITICAL SECURITY ENFORCEMENT: Reject Unguarded Simulation Runs
+    if (targetRun && targetRun.mode === "unguarded") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Security Violation: Unguarded simulation runs cannot create PayPal orders or initiate payments.",
+        },
+        { status: 403 }
+      );
+    }
+
     if (!targetTx && !targetRun) {
       return NextResponse.json(
         {
@@ -85,6 +103,16 @@ export async function POST(req: NextRequest) {
 
     // 3. Server-Side Verification: Ensure Deal Status is genuinely Approved or Human-Authorized
     if (targetTx) {
+      const linkedRun = state.negotiationRuns?.find((r) => r.id === targetTx?.dealId);
+      if (linkedRun && linkedRun.mode === "unguarded") {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Security Violation: Unguarded simulation transactions cannot create PayPal orders or initiate payments.",
+          },
+          { status: 403 }
+        );
+      }
       if (
         targetTx.status === "REJECTED_GUARDRAIL" ||
         targetTx.status === "REJECTED_HUMAN"
@@ -286,11 +314,13 @@ export async function POST(req: NextRequest) {
     })();
 
     inFlightOrderPromises.set(lockKey, orderExecution);
+    if (initialLockKey) inFlightOrderPromises.set(initialLockKey, orderExecution);
     try {
       const resultData = await orderExecution;
       return NextResponse.json(resultData);
     } finally {
       inFlightOrderPromises.delete(lockKey);
+      if (initialLockKey) inFlightOrderPromises.delete(initialLockKey);
     }
   } catch (err: unknown) {
     console.error("PayPal create-order error:", err);

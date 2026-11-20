@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getMandate,
   getTransactions,
+  getState,
   updateTransaction,
   addAuditLog,
   deductBudget,
@@ -39,6 +40,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Transaction not found" },
         { status: 404 }
+      );
+    }
+
+    const state = getState();
+    const linkedRun = state.negotiationRuns?.find((r) => r.id === tx.dealId);
+    if (linkedRun && linkedRun.mode === "unguarded") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Security Violation: Unguarded simulation transactions cannot be approved or captured.",
+        },
+        { status: 403 }
       );
     }
 

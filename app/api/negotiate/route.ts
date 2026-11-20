@@ -429,21 +429,59 @@ export async function POST(req: NextRequest) {
           roundsCount: turns.length,
         });
 
-        // 4. Handle auto-approval payment or pending transaction
-        const txId = `tx-${Date.now()}`;
-        if (finalStatus === "approved") {
-          try {
-            const paypalOrder = await createPayPalOrder({
-              amount: finalPrice,
-              currency: "USD",
-              description: `${product.name} [${mode.toUpperCase()}]`,
-              customId: txId,
-              productName: product.name,
-            });
+        // 4. Handle auto-approval payment or pending transaction (GUARDED MODE ONLY)
+        // CRITICAL ARCHITECTURAL ENFORCEMENT:
+        // Unguarded mode is strictly a comparative simulation / baseline benchmark.
+        // It must NEVER initiate PayPal orders, capture payments, deduct wallet balances,
+        // or record transactions in the financial ledger.
+        let txId: string | undefined = undefined;
 
-            const capture = await capturePayPalOrder(paypalOrder.orderId);
-            deductBudget(finalPrice);
+        if (mode === "guarded") {
+          txId = `tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          if (finalStatus === "approved") {
+            try {
+              const paypalOrder = await createPayPalOrder({
+                amount: finalPrice,
+                currency: "USD",
+                description: `${product.name} [GUARDED]`,
+                customId: txId,
+                productName: product.name,
+              });
 
+              const capture = await capturePayPalOrder(paypalOrder.orderId);
+              deductBudget(finalPrice);
+
+              addTransaction({
+                id: txId,
+                dealId: runId,
+                productId: product.id,
+                productName: product.name,
+                category: product.category,
+                sellerName: product.sellerName || "Direct Merchant",
+                amount: finalPrice,
+                listPrice,
+                attackFlag: attackMode,
+                currency: "USD",
+                status: "PAYPAL_CAPTURED",
+                paypalOrderId: paypalOrder.orderId,
+                paypalCaptureId: capture.captureId,
+                paymentMode: paypalOrder.paymentMode,
+                guardrailResult: {
+                  dealId: runId,
+                  decision: "AUTO_APPROVED",
+                  passedAllBlockers: true,
+                  reason: finalReasons.join(" "),
+                  checks: [],
+                  evaluatedAt: new Date().toISOString(),
+                  evaluatedBy: "DETERMINISTIC_ENGINE",
+                },
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              });
+            } catch (payErr) {
+              console.warn("Payment error:", payErr);
+            }
+          } else if (finalStatus === "needs_approval") {
             addTransaction({
               id: txId,
               dealId: runId,
@@ -455,13 +493,11 @@ export async function POST(req: NextRequest) {
               listPrice,
               attackFlag: attackMode,
               currency: "USD",
-              status: "PAYPAL_CAPTURED",
-              paypalOrderId: paypalOrder.orderId,
-              paypalCaptureId: capture.captureId,
-              paymentMode: paypalOrder.paymentMode,
+              status: "PENDING_APPROVAL",
+              paymentMode: "SIMULATED_SANDBOX",
               guardrailResult: {
                 dealId: runId,
-                decision: mode === "unguarded" ? "AUTO_APPROVED" : "AUTO_APPROVED",
+                decision: "NEEDS_HUMAN_APPROVAL",
                 passedAllBlockers: true,
                 reason: finalReasons.join(" "),
                 checks: [],
@@ -471,61 +507,33 @@ export async function POST(req: NextRequest) {
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             });
-          } catch (payErr) {
-            console.warn("Payment error:", payErr);
+          } else if (finalStatus === "blocked") {
+            addTransaction({
+              id: txId,
+              dealId: runId,
+              productId: product.id,
+              productName: product.name,
+              category: product.category,
+              sellerName: product.sellerName || "Direct Merchant",
+              amount: finalPrice,
+              listPrice,
+              attackFlag: attackMode,
+              currency: "USD",
+              status: "REJECTED_GUARDRAIL",
+              paymentMode: "SIMULATED_SANDBOX",
+              guardrailResult: {
+                dealId: runId,
+                decision: "REJECTED",
+                passedAllBlockers: false,
+                reason: finalReasons.join(" "),
+                checks: [],
+                evaluatedAt: new Date().toISOString(),
+                evaluatedBy: "DETERMINISTIC_ENGINE",
+              },
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
           }
-        } else if (finalStatus === "needs_approval") {
-          addTransaction({
-            id: txId,
-            dealId: runId,
-            productId: product.id,
-            productName: product.name,
-            category: product.category,
-            sellerName: product.sellerName || "Direct Merchant",
-            amount: finalPrice,
-            listPrice,
-            attackFlag: attackMode,
-            currency: "USD",
-            status: "PENDING_APPROVAL",
-            paymentMode: "SIMULATED_SANDBOX",
-            guardrailResult: {
-              dealId: runId,
-              decision: "NEEDS_HUMAN_APPROVAL",
-              passedAllBlockers: true,
-              reason: finalReasons.join(" "),
-              checks: [],
-              evaluatedAt: new Date().toISOString(),
-              evaluatedBy: "DETERMINISTIC_ENGINE",
-            },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
-        } else if (finalStatus === "blocked") {
-          addTransaction({
-            id: txId,
-            dealId: runId,
-            productId: product.id,
-            productName: product.name,
-            category: product.category,
-            sellerName: product.sellerName || "Direct Merchant",
-            amount: finalPrice,
-            listPrice,
-            attackFlag: attackMode,
-            currency: "USD",
-            status: "REJECTED_GUARDRAIL",
-            paymentMode: "SIMULATED_SANDBOX",
-            guardrailResult: {
-              dealId: runId,
-              decision: "REJECTED",
-              passedAllBlockers: false,
-              reason: finalReasons.join(" "),
-              checks: [],
-              evaluatedAt: new Date().toISOString(),
-              evaluatedBy: "DETERMINISTIC_ENGINE",
-            },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
         }
 
         // Final payload
